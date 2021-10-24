@@ -9,7 +9,8 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #define PORT 8080
 #define block_size 1048576
@@ -51,9 +52,9 @@ int main(int argc, char const *argv[])
 	sock = socket(AF_INET, SOCK_STREAM, 0); 
 	assert(sock >= 0);
 
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_port = htons(PORT);	
-	
+	serv_addr.sin_family = AF_INET; 
+	serv_addr.sin_port = htons(PORT);
+
 	invoke_result = inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr);
 	assert(invoke_result > 0);
 
@@ -70,15 +71,12 @@ int main(int argc, char const *argv[])
 		assert(invoke_result >= 0);
 		bytes_sent += block_size;
 	}
-	
-	sleep(5);
 
 	invoke_result = send(sock, finish_data, block_size, 0);
 	assert(invoke_result >= 0);
 
 	recv(sock, &ack, 1, MSG_WAITALL); 
-	
-	printf("bytes sent: %lu, send period: %d\n", bytes_sent, send_period);
+
 	bandwidth = (bytes_sent / send_period);
 	print_bandwidth(bandwidth);
 

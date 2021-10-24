@@ -5,20 +5,18 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
-#include "unix-socket.h"
 #include <sys/types.h>
 #include <time.h>
 #include <sys/time.h>
 
+#define PORT 8080
 #define MAX_CONNECTIONS 1024
-//#define block_size 1048576
-//#define block_size 212992
-#define block_size 4096
+#define block_size 1048576
 
 #define SERVER_UPTIME_SEC 60
 #define TIMEOUT_SEC 2
 
-struct sockaddr_un address;
+struct sockaddr_in address;
 int addrlen = sizeof(address);
 long bytes_received = 0;
 char ack;
@@ -79,7 +77,7 @@ void perform_select(int listening_socket, int clients[], int *n_clients)
 	printf("checking for socket events...\n");
 	select_result = select(FD_SETSIZE, &sock_set, NULL, NULL, &select_timeout);
 	assert(select_result >= 0);
-
+	
 	if (select_result == 0)
 	{
 		printf("no external events occured, proceeding...\n");
@@ -97,10 +95,7 @@ void perform_select(int listening_socket, int clients[], int *n_clients)
 
 	for (i = 0; i < *n_clients; ++i)
 	{
-		if (!FD_ISSET(clients[i], &sock_set))
-			continue;
-
-		if (read_client(clients[i]) < 0)		
+		if (FD_ISSET(clients[i], &sock_set) && read_client(clients[i]) < 0)		
 		{
 			handle_client_disconnect(clients, i, n_clients);
 			send(clients[i], &ack, 1, 0);
@@ -116,18 +111,15 @@ int main(int argc, char const *argv[])
 	int clients[MAX_CONNECTIONS] = {0};
 	int n_clients = 0;
 
-	server_fd = socket(AF_UNIX, SOCK_STREAM, 0); 
+	server_fd = socket(AF_INET, SOCK_STREAM, 0); 
 	assert(server_fd != 0);
 
-	assert(strlen(SV_SOCK_PATH) <= sizeof(address.sun_path) - 1);
-	unlink(SV_SOCK_PATH);	
-	
-	memset(&address, 0, sizeof(struct sockaddr_un));
-	address.sun_family = AF_UNIX;
-        strncpy(address.sun_path, SV_SOCK_PATH, sizeof(address.sun_path) - 1);	
-	
         invoke_result = setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
         assert(invoke_result == 0);
+	
+	address.sin_family = AF_INET; 
+	address.sin_port = htons(PORT);
+	address.sin_addr.s_addr = INADDR_ANY;
 
 	invoke_result = bind(server_fd, (struct sockaddr *)&address, sizeof(address));
 	assert(invoke_result >= 0);
